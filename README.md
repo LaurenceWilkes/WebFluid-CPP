@@ -9,6 +9,9 @@ Currently, the implementation is a fairly direct translation of the smoke simula
 The performance is slightly better than the browser version when compiled in release mode. 
 Hopefully, there will be ways of optimising/parallelising so that this version runs even faster.
 
+#### Build and Run (Windows)
+`cmake --build build --config Release && .\build\src\Release\Smoke.exe`
+
 ## Features
 - Implemented in C++20
 - Uses SDL3 for display and rendering instead of HTML canvas
