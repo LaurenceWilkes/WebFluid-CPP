@@ -214,20 +214,17 @@ void pointerMotion(SDL_Event& e, SDL_Window* win, FluidSim& sim, MouseState& m) 
     }
 }
 
-void initSDL(SDL_Window*& win, SDL_Renderer*& ren, SDL_Texture*& tex) {
+void initialise(SDL_Window*& win, SDL_Renderer*& ren, SDL_Texture*& tex) {
     SDL_Init(SDL_INIT_VIDEO);
 
-    win = SDL_CreateWindow("Smoke", 1280, 800,
-        SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    win = SDL_CreateWindow("Smoke", 1280, 800, SDL_WINDOW_RESIZABLE);
+//    win = SDL_CreateWindow("Smoke", 1280, 800, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
 
     ren = SDL_CreateRenderer(win, NULL);
-    SDL_SetRenderVSync(ren, 1);
-    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+//    SDL_SetRenderVSync(ren, 1);
+//    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
 
-    tex = SDL_CreateTexture(ren,
-        SDL_PIXELFORMAT_RGB24,
-        SDL_TEXTUREACCESS_STREAMING,
-        N, N);
+    tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, N, N);
 
     SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
 }
@@ -236,18 +233,19 @@ void render(SDL_Renderer* ren, SDL_Texture* tex, SDL_Window* win, FluidSim& sim,
     for (int j = 1; j <= N; j++) {
 	for (int i = 1; i <= N; i++) {
 	    int id = IX(i, j);
-	    int k = ((j - 1) * N + (i - 1)) * 3;
+	    int k = ((j - 1) * N + (i - 1)) * 4;
 	    pixels[k]     = clampi((int) sim.dr[id], 0, 255);
 	    pixels[k + 1] = clampi((int) sim.dg[id], 0, 255);
 	    pixels[k + 2] = clampi((int) sim.db[id], 0, 255);
+	    pixels[k + 3] = 255;
 	}
     }
 
-    SDL_UpdateTexture(tex, NULL, pixels.data(), N * 3);
+    SDL_UpdateTexture(tex, NULL, pixels.data(), N * 4);
 
     int w, h;
     SDL_GetWindowSize(win, &w, &h);
-    SDL_FRect dst = {0,0,(float)w,(float)h};
+    SDL_FRect dst = {0, 0, (float) w, (float) h};
 
     SDL_RenderClear(ren);
     SDL_RenderTexture(ren, tex, NULL, &dst);
@@ -258,10 +256,10 @@ int main() {
     SDL_Window* win;
     SDL_Renderer* ren;
     SDL_Texture* tex;
-    initSDL(win, ren, tex);
+    initialise(win, ren, tex);
 
     FluidSim sim;
-    vector<unsigned char> pixels(N * N * 3);
+    vector<unsigned char> pixels(N * N * 4);
 
     MouseState mouse;
     GeyserState geyser;
@@ -280,7 +278,7 @@ int main() {
         }
 
         double now = SDL_GetTicks() / 1000.0;
-        double dt = min(now - last, 1.0 / 30.0);
+        double dt = min(now - last, 1.0 / 30);
         last = now;
 
         updateGeyser(sim, geyser, now * 1000);
