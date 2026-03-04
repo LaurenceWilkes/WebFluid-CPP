@@ -5,17 +5,15 @@
 
 using namespace std;
 
-const int N = 96;
-const int iterGS = 10;
+const int N = 96; // simulation size is N x N voxels
+const int iterGS = 10; // number of iterations of the Gauss--Seidel linear solvers
 
-inline double clamp(double x, double a, double b) { return x < a ? a : (x > b ? b : x); }
-inline int clampi(int x, int a, int b) { return x < a ? a : (x > b ? b : x); }
 inline int IX(int i, int j) { return i + (N + 2) * j; }
 
 struct FluidSim {
-    int size = (N + 2) * (N + 2);
-    double diff = 0.000001;
-    double visc = 0.00005;
+    const int size = (N + 2) * (N + 2); // Size of vectors containing velocities/densities. (includes a buffer of one pixel around whole grid)
+    const double diff = 0.000001;       // diffusion for dyes
+    const double visc = 0.00005;        // diffusion for velocities of fluid
 
     vector<double> u, v, u0, v0;
     vector<double> dr, dg, db, dr0, dg0, db0;
@@ -71,7 +69,7 @@ struct FluidSim {
             }
         }
         setBound(b, d);
-    }
+    } 
 
     void project(vector<double>& u, vector<double>& v, vector<double>& p, vector<double>& div) {
         double h = 1.0 / N;
@@ -161,7 +159,7 @@ void updateGeyser(FluidSim& sim, GeyserState& g, double now) {
     double jet = pow * sgn;
 
     for (int k = -1; k <= 1; k++) {
-	int dd = clampi(g.dist + k, 1, N);
+	int dd = clamp(g.dist + k, 1, N);
 	int id = g.par1 ? IX(dd, nf) : IX(nf, dd);
 
 	sim.dr[id] += vol * g.col[0];
@@ -193,15 +191,15 @@ void pointerMotion(SDL_Event& e, SDL_Window* win, FluidSim& sim, MouseState& m) 
 
     double dx = (gx - m.ppmx) / 2;
     double dy = (gy - m.ppmy) / 2;
-    m.pmx = m.ppmx = gx;
-    m.pmy = m.ppmy = gy;
+    m.ppmx = m.pmx; m.pmx = gx;
+    m.ppmy = m.pmy; m.pmy = gy;
 
-    int ii = clampi((int) gx, 1, N);
-    int jj = clampi((int) gy, 1, N);
+    int ii = clamp((int) gx, 1, N);
+    int jj = clamp((int) gy, 1, N);
     int r = 2;
 
-    int i0 = clampi(ii - r, 1, N), i1 = clampi(ii + r, 1, N);
-    int j0 = clampi(jj - r, 1, N), j1 = clampi(jj + r, 1, N);
+    int i0 = clamp(ii - r, 1, N), i1 = clamp(ii + r, 1, N);
+    int j0 = clamp(jj - r, 1, N), j1 = clamp(jj + r, 1, N);
 
     for (int i = i0; i <= i1; i++) {
 	for (int j = j0; j <= j1; j++) {
@@ -226,7 +224,7 @@ void initialise(SDL_Window*& win, SDL_Renderer*& ren, SDL_Texture*& tex) {
 
     tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, N, N);
 
-    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
+    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR); 
 }
 
 void render(SDL_Renderer* ren, SDL_Texture* tex, SDL_Window* win, FluidSim& sim, vector<unsigned char>& pixels) {
@@ -234,9 +232,9 @@ void render(SDL_Renderer* ren, SDL_Texture* tex, SDL_Window* win, FluidSim& sim,
 	for (int i = 1; i <= N; i++) {
 	    int id = IX(i, j);
 	    int k = ((j - 1) * N + (i - 1)) * 4;
-	    pixels[k]     = clampi((int) sim.dr[id], 0, 255);
-	    pixels[k + 1] = clampi((int) sim.dg[id], 0, 255);
-	    pixels[k + 2] = clampi((int) sim.db[id], 0, 255);
+	    pixels[k]     = clamp((int) sim.dr[id], 0, 255);
+	    pixels[k + 1] = clamp((int) sim.dg[id], 0, 255);
+	    pixels[k + 2] = clamp((int) sim.db[id], 0, 255);
 	    pixels[k + 3] = 255;
 	}
     }
