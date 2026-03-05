@@ -2,6 +2,8 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <cstdlib>
+#include <string>
 
 using namespace std;
 
@@ -9,6 +11,7 @@ const int N = 164; // simulation size is N x N voxels
 const int iterGS = 10; // number of iterations of the Gauss--Seidel linear solvers
 const float visc = 0.00005f;        // diffusion for velocities of fluid
 const float diff = 0.000001f;        // diffusion for dye
+const int particleCount = 10000;
 
 struct ScalarField {
     int side; // in our case side = N + 2
@@ -150,11 +153,14 @@ struct DyeSim {
     } // densityStep
 }; // DyeSim
 
-struct GeyserState {
+struct Geyser {
     float next = 0.0f;
     bool par1 = true, par2 = true;
     int dist = 1;
     float col[3] = {1.0f, 1.0f, 1.0f};
+
+    const int flowTime = 3000;
+    const float pow = 1.0f;
 
     void resetGeyser(float now) {
 	next = now + 500 + (rand() / (float) RAND_MAX) * 1500;
@@ -171,17 +177,17 @@ struct GeyserState {
     } // resetGeyser
 };
 
-void updateGeyser(FluidSim& sim, DyeSim& dye, GeyserState& g, float now) {
+void updateGeyserDye(FluidSim& sim, DyeSim& dye, Geyser& g, float now) {
     if (now < g.next) return;
-    if (now >= g.next + 3000) {
+    if (now >= g.next + g.flowTime) {
 	g.resetGeyser(now);
 	return;
     }
 
-    float pow = 1.0f, vol = 155.0f;
+    float vol = 155.0f;
     int nf = g.par2 ? 2 : N - 1;
     int sgn = g.par2 ? 1 : -1;
-    float jet = pow * sgn;
+    float jet = g.pow * sgn;
     int jetSize = 3;
 
     for (int k = -jetSize; k <= jetSize; k++) {
@@ -198,7 +204,27 @@ void updateGeyser(FluidSim& sim, DyeSim& dye, GeyserState& g, float now) {
 	    sim.u(nf, dd) += jet;
 	}
     }
+} // updateGeyserDye
+
+void updateGeyser(FluidSim& sim, Geyser& g, float now) {
+    if (now < g.next) return;
+    if (now >= g.next + g.flowTime) {
+	g.resetGeyser(now);
+	return;
+    }
+
+    int nf = g.par2 ? 2 : N - 1;
+    int sgn = g.par2 ? 1 : -1;
+    float jet = g.pow * sgn;
+    int jetSize = 3;
+
+    for (int k = -jetSize; k <= jetSize; k++) {
+	int dd = clamp(g.dist + k, 1, N);
+	if (g.par1) sim.v(dd, nf) += jet;
+	else        sim.u(nf, dd) += jet;
+    }
 } // updateGeyser
+
 
 struct MouseState {
     float pmx = -1, pmy = -1;
@@ -245,7 +271,7 @@ void initialise(SDL_Window*& win, SDL_Renderer*& ren, SDL_Texture*& tex) {
 
     ren = SDL_CreateRenderer(win, NULL);
 //    SDL_SetRenderVSync(ren, 1);
-//    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+    SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 
     tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, N, N);
 
@@ -253,7 +279,55 @@ void initialise(SDL_Window*& win, SDL_Renderer*& ren, SDL_Texture*& tex) {
     SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
 }
 
-void render(SDL_Renderer* ren, SDL_Texture* tex, float winW, float winH, const DyeSim& dye, vector<unsigned char>& pixels) {
+struct Particle {
+    float x, y;
+    float px, py;
+
+    Particle() : x(0), y(0), px(0), py(0) {reset();}
+
+    void reset() {
+	x = px = 0.5f + N * (rand() / (float) RAND_MAX);
+	y = py = 0.5f + N * (rand() / (float) RAND_MAX);
+    } // reset
+
+    void update(const ScalarField& u, const ScalarField& v, float dt0) {
+        px = x; py = y;
+	float f = clamp(x, 0.5f, N + 0.5f);
+	float g = clamp(y, 0.5f, N + 0.5f);
+	int i0 = (int) f, i1 = i0 + 1;
+	int j0 = (int) g, j1 = j0 + 1;
+	float s1 = f - i0, s0 = 1.0f - s1;
+	float t1 = g - j0, t0 = 1.0f - t1;
+	float ui = s0 * (t0 * u(i0, j0) + t1 * u(i0, j1))
+		 + s1 * (t0 * u(i1, j0) + t1 * u(i1, j1));
+	float vi = s0 * (t0 * v(i0, j0) + t1 * v(i0, j1))
+		 + s1 * (t0 * v(i1, j0) + t1 * v(i1, j1));
+	x += dt0 * ui;
+	y += dt0 * vi;
+    } // update
+}; // Particle
+
+struct ParticleSystem {
+    vector<Particle> particles;
+
+    const float resetPerc = 0.01;
+
+    ParticleSystem(int size) : particles(size) {}
+
+    void step(ScalarField& u, ScalarField& v, float dt) {
+	float dt0 = dt * N;
+	for (auto& p : particles) {
+	    bool reset = rand() / (float) RAND_MAX < resetPerc;
+	    if (reset) {
+		p.reset();
+	    } else {
+	        p.update(u, v, dt0);
+	    }
+	}
+    } // step
+}; // ParticleSystem
+
+void renderDye(SDL_Renderer* ren, SDL_Texture* tex, float winW, float winH, const DyeSim& dye, vector<unsigned char>& pixels) {
     for (int j = 1; j <= N; j++) {
 	for (int i = 1; i <= N; i++) {
 	    int k = ((j - 1) * N + (i - 1)) * 4;
@@ -273,7 +347,38 @@ void render(SDL_Renderer* ren, SDL_Texture* tex, float winW, float winH, const D
     SDL_RenderPresent(ren);
 }
 
-int main() {
+void renderParticles(SDL_Renderer* ren, float winW, float winH, const ParticleSystem& ps) {
+    float sx = winW / N;
+    float sy = winH / N;
+
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 60);
+    SDL_RenderFillRect(ren, NULL);
+
+    SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+
+    for (const auto& p : ps.particles) {
+	SDL_RenderLine(ren,
+	    p.px * sx,
+	    p.py * sy,
+	    p.x  * sx,
+	    p.y  * sy);
+    }
+
+    SDL_RenderPresent(ren);
+}
+
+enum class RenderMode {
+    Dye,
+    Particles
+}; // RenderMode
+
+RenderMode mode = RenderMode::Dye;
+
+int main(int argc, char** argv) {
+    if (argc > 1 && string(argv[1]) == "--particles") {
+	mode = RenderMode::Particles;
+    }
+
     SDL_Window* win;
     SDL_Renderer* ren;
     SDL_Texture* tex;
@@ -288,8 +393,10 @@ int main() {
     vector<unsigned char> pixels(N * N * 4);
 
     MouseState mouse;
-    GeyserState geyser;
+    Geyser geyser;
     geyser.resetGeyser((float) SDL_GetTicks());
+
+    ParticleSystem particles(particleCount);
 
     float last = SDL_GetTicks() / 1000.0;
     bool running = true;
@@ -310,11 +417,18 @@ int main() {
         float dt = min(now - last, 1.0f / 30);
         last = now;
 
-        updateGeyser(sim, dye, geyser, now * 1000);
-        sim.velocityStep(dt);
-        dye.densityStep(sim.u, sim.v, dt);
+	if (mode == RenderMode::Dye) {
+	    updateGeyserDye(sim, dye, geyser, now * 1000);
+	    sim.velocityStep(dt);
+	    dye.densityStep(sim.u, sim.v, dt);
+	    renderDye(ren, tex, winW, winH, dye, pixels);
+	} else if (mode == RenderMode::Particles) {
+	    updateGeyser(sim, geyser, now * 1000);
+	    sim.velocityStep(dt);
+	    particles.step(sim.u, sim.v, dt);
+	    renderParticles(ren, winW, winH, particles);
+	}
 
-        render(ren, tex, winW, winH, dye, pixels);
     }
 
     SDL_Quit();
