@@ -7,14 +7,14 @@
 
 using namespace std;
 
-const int N = 164; // simulation size is N x N voxels
-const int iterGS = 10; // number of iterations of the Gauss--Seidel linear solvers
-const float visc = 0.00005f;        // diffusion for velocities of fluid
-const float diff = 0.000001f;        // diffusion for dye
-const int particleCount = 10000;
+const int N = 164;	         // Simulation size is N x N voxels
+const int iterGS = 10;	         // Number of iterations of the Gauss--Seidel linear solvers
+const float visc = 0.00005f;     // Diffusion for velocities of fluid
+const float diff = 0.000001f;    // Diffusion for dye
+const int particleCount = 10000; // Number of particles to be displayed
 
 struct ScalarField {
-    int side; // in our case side = N + 2
+    int side; // in our case side === N + 2
     vector<float> data;
     vector<float> tmp;
 
