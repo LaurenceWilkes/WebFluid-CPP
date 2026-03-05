@@ -11,7 +11,9 @@ Hopefully, there will be ways of optimising/parallelising so that this version r
 
 #### Build and Run (Windows)
 `cmake --build build --config Release`
+
 `.\build\src\Release\Smoke.exe`
+
 Run with the flag `--particles` for the particle display of the fluid motion.
 
 ## Features
