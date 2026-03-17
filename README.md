@@ -17,7 +17,6 @@ Hopefully, there will be ways of optimising/parallelising so that this version r
 Run with the flag `--particles` for the particle display of the fluid motion.
 
 ## Features
-- Implemented in C++20
 - Uses SDL3 for display and rendering instead of HTML canvas
 - Uses single precision for simulation state
 - Built with CMake
